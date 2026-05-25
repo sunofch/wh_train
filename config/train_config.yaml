@@ -1,33 +1,39 @@
-# ── 基座模型 ──────────────────────────────────────────────────────────────────
+# 基座模型。Qwen3.5 需要 ms-swift 4.x 与 transformers 5.x。
 model: Qwen/Qwen3.5-4B
-train_type: lora
 
-# ── 数据集 ────────────────────────────────────────────────────────────────────
-dataset: data/train.jsonl
-val_dataset: data/val.jsonl
+# 微调方式。新版 ms-swift 使用 tuner_type，旧版 train_type 已不适用。
+tuner_type: lora
+do_train: true
 
-# ── LoRA 参数 ─────────────────────────────────────────────────────────────────
-lora_rank: 16           # LoRA 秩，增大提升表达能力但增加显存
-lora_alpha: 32          # 缩放系数，通常为 lora_rank 的 2 倍
-lora_dropout: 0.05      # 防过拟合；小数据集可调大至 0.1
-target_modules: all-linear
+# 数据集路径，使用 ShareGPT 格式 jsonl。
+dataset:
+  - data/train.jsonl
+val_dataset:
+  - data/val.jsonl
 
-# ── 序列与批次 ────────────────────────────────────────────────────────────────
-max_length: 512         # 领料指令通常 <100 token，512 足够
+# LoRA 参数。
+lora_rank: 16
+lora_alpha: 32
+lora_dropout: 0.05
+target_modules:
+  - all-linear
+
+# 序列长度与 batch 设置。
+max_length: 512
 per_device_train_batch_size: 4
-gradient_accumulation_steps: 4   # 等效 batch_size = 16
+gradient_accumulation_steps: 4
 
-# ── 训练轮次与学习率 ──────────────────────────────────────────────────────────
+# 训练轮次与学习率。
 num_train_epochs: 3
-learning_rate: 2e-4
+learning_rate: 0.0002
 lr_scheduler_type: cosine
 warmup_ratio: 0.05
 
-# ── 精度与输出 ────────────────────────────────────────────────────────────────
-bf16: true              # RTX 3090 Ti 支持 bf16；若用 fp16 环境改为 fp16: true
+# 精度与输出目录。
+bf16: true
 output_dir: ./output/qwen35_lora
 
-# ── 检查点与日志 ──────────────────────────────────────────────────────────────
+# 检查点、评估与日志。
 save_strategy: epoch
 eval_strategy: epoch
 logging_steps: 10
