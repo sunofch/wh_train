@@ -1,0 +1,25 @@
+# 项目文档（不入库）
+project4.md
+data.md
+
+# 规划文档
+docs/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# Claude
+.claude/
+
+# 训练产物（大文件）
+data/
+output/
+
+# 环境
+.env
+*.egg-info/
+dist/
+build/

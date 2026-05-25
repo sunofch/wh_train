@@ -1,0 +1,6 @@
+# ── 导出合并权重配置 ───────────────────────────────────────────────────────────
+# 训练完成后，将 adapters 改为 val loss 最低的 checkpoint 路径（如 checkpoint-epoch2）
+model: Qwen/Qwen3.5-4B
+adapters: ./output/qwen35_lora/checkpoint-best
+merge_lora: true
+output_dir: ./output/qwen35_merged
