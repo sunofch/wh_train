@@ -36,7 +36,7 @@ pip install -r requirements.txt
 ```
 wh_train/
 ├── config/
-│   ├── train_config.yaml    # 训练超参数（ms-swift --config 加载）
+│   ├── train_config.yaml    # 训练超参数（ms-swift 配置）
 │   └── export_config.yaml   # LoRA 导出合并配置
 ├── data/
 │   ├── train.jsonl          # 训练集（ShareGPT 格式）
@@ -68,14 +68,35 @@ python generate_dataset.py
 ### 2. 训练
 
 ```bash
-swift sft --config config/train_config.yaml
+CUDA_VISIBLE_DEVICES=1 swift sft config/train_config.yaml
 ```
 
 所有超参数在 `config/train_config.yaml` 中配置，无需修改命令行。
 
 训练日志与 checkpoint 保存至 `output/qwen35_lora/`。
 
-### 3. 评估
+### 3. 交互试用
+
+优先使用验证集 loss 最低的 checkpoint，例如：
+
+```bash
+CUDA_VISIBLE_DEVICES=1 swift infer \
+  --model Qwen/Qwen3.5-4B \
+  --adapters output/qwen35_lora/v5-20260525-194426/checkpoint-168 \
+  --infer_backend pt \
+  --max_new_tokens 256 \
+  --temperature 0 \
+  --enable_thinking false \
+  --system '你是港口备件指令解析助手。将用户指令解析为JSON数组，无法确定的字段输出null，不要猜测。action_required 只能是 入库/出库/调库/null，is_urgent 为 bool。'
+```
+
+进入交互模式后输入自然语言指令，例如：
+
+```text
+紧急出库2个6208-2RS-C3-SKF轴承和1个HTW-3400Nm-ENERPAC液压力矩扳手
+```
+
+### 4. 批量评估
 
 ```bash
 python evaluate.py --val_file data/val.jsonl --model_dir output/qwen35_lora/checkpoint-best
@@ -90,10 +111,24 @@ python evaluate.py --val_file data/val.jsonl --model_dir output/qwen35_lora/chec
 | 数组长度准确率（多备件） | > 85% |
 | null 召回率（缺失字段） | > 95% |
 
-### 4. 导出合并模型
+也可以先用 Swift 对验证集生成预测：
 
 ```bash
-swift export --config config/export_config.yaml
+CUDA_VISIBLE_DEVICES=1 swift infer \
+  --model Qwen/Qwen3.5-4B \
+  --adapters output/qwen35_lora/v5-20260525-194426/checkpoint-168 \
+  --val_dataset data/val.jsonl \
+  --result_path output/qwen35_lora/v5-20260525-194426/pred.jsonl \
+  --infer_backend pt \
+  --max_new_tokens 256 \
+  --temperature 0 \
+  --enable_thinking false
+```
+
+### 5. 导出合并模型
+
+```bash
+swift export config/export_config.yaml
 ```
 
 合并后的模型保存至 `output/qwen35_merged/`。
@@ -105,11 +140,11 @@ swift export --config config/export_config.yaml
 编辑 `config/train_config.yaml`，关键参数说明：
 
 ```yaml
-lora_rank: 16        # LoRA 秩，增大可提升表达能力但增加显存
-learning_rate: 2e-4  # 初始学习率
-num_train_epochs: 3  # 训练轮数
+lora_rank: 16
+learning_rate: 0.0002
+num_train_epochs: 3
 per_device_train_batch_size: 4
-gradient_accumulation_steps: 4  # 等效 batch_size = 4 × 4 = 16
+gradient_accumulation_steps: 4
 ```
 
 ---
