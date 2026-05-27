@@ -3,7 +3,8 @@
 用法：
     python evaluate.py pred.jsonl gold.jsonl
 
-两个 jsonl 文件均为 ms-swift ShareGPT 格式，最后一条 message（assistant）作为预测/标准答案。
+两个 jsonl 文件可以是 OpenAI messages 格式，或 LLaMA-Factory
+generated_predictions.jsonl 格式（predict/label 字段）。
 """
 from __future__ import annotations
 
@@ -74,12 +75,26 @@ def null_recall(records: list[dict], field: str) -> float:
     return correct / len(null_cases)
 
 
+def _extract_output(record: dict, *, prediction: bool) -> str:
+    """Extract model output from supported prediction/gold jsonl formats."""
+    if "messages" in record:
+        return record["messages"][-1]["content"]
+
+    keys = ("predict", "prediction", "generated_text") if prediction else ("label", "gold", "output")
+    for key in keys:
+        value = record.get(key)
+        if isinstance(value, str):
+            return value
+
+    raise KeyError(f"Cannot find {'prediction' if prediction else 'gold'} output in record")
+
+
 def evaluate_file(pred_jsonl: str, gold_jsonl: str) -> dict:
-    """从两个 ShareGPT jsonl 文件读取并计算全部指标。"""
+    """从两个 jsonl 文件读取并计算全部指标。"""
     preds = [json.loads(l) for l in Path(pred_jsonl).read_text(encoding="utf-8").splitlines() if l.strip()]
     golds = [json.loads(l) for l in Path(gold_jsonl).read_text(encoding="utf-8").splitlines() if l.strip()]
     records = [
-        {"predicted": p["messages"][-1]["content"], "gold": g["messages"][-1]["content"]}
+        {"predicted": _extract_output(p, prediction=True), "gold": _extract_output(g, prediction=False)}
         for p, g in zip(preds, golds)
     ]
     return {

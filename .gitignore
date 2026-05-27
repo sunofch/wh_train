@@ -15,7 +15,8 @@ __pycache__/
 .claude/
 
 # 训练产物（大文件）
-data/
+data/*
+!data/dataset_info.json
 output/
 
 # 环境

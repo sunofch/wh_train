@@ -197,8 +197,8 @@ def _print_rejection_summary(raw: list[dict]) -> None:
     print(f"  返回样例：{preview}")
 
 
-def to_swift_format(sample: dict, system_prompt: str) -> dict:
-    """将 {input, output} 转为 ms-swift ShareGPT 格式。"""
+def to_openai_messages_format(sample: dict, system_prompt: str) -> dict:
+    """将 {input, output} 转为 OpenAI messages 格式。"""
     return {
         "messages": [
             {"role": "system",    "content": system_prompt},
@@ -325,11 +325,11 @@ def main():
 
     with open(output_dir / "train.jsonl", "w", encoding="utf-8") as f:
         for s in train_raw:
-            f.write(json.dumps(to_swift_format(s, SYSTEM_PROMPT), ensure_ascii=False) + "\n")
+            f.write(json.dumps(to_openai_messages_format(s, SYSTEM_PROMPT), ensure_ascii=False) + "\n")
 
     with open(output_dir / "val.jsonl", "w", encoding="utf-8") as f:
         for s in val_raw:
-            f.write(json.dumps(to_swift_format(s, SYSTEM_PROMPT), ensure_ascii=False) + "\n")
+            f.write(json.dumps(to_openai_messages_format(s, SYSTEM_PROMPT), ensure_ascii=False) + "\n")
 
     print(f"\n完成：train {len(train_raw)} 条，val {len(val_raw)} 条")
     print(f"输出：{output_dir}/train.jsonl, val.jsonl")

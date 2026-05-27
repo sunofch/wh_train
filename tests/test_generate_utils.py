@@ -1,7 +1,7 @@
 import json
 import pytest
 from pathlib import Path
-from generate_dataset import validate_sample, to_swift_format, load_knowledge_base, stratified_split
+from generate_dataset import validate_sample, to_openai_messages_format, load_knowledge_base, stratified_split
 
 SYSTEM_PROMPT = (
     "你是港口备件指令解析助手。"
@@ -40,14 +40,14 @@ def test_validate_sample_empty_array():
     sample = {"input": "x", "output": "[]"}
     assert validate_sample(sample) is False
 
-# ── to_swift_format ────────────────────────────────────────────────────────────
+# ── to_openai_messages_format ─────────────────────────────────────────────────
 
-def test_to_swift_format_structure():
+def test_to_openai_messages_format_structure():
     sample = {
         "input": "出库2个轴承",
         "output": '[{"part_name":"轴承","quantity":2,"model":null,"action_required":"出库","is_urgent":false,"description":null}]'
     }
-    result = to_swift_format(sample, SYSTEM_PROMPT)
+    result = to_openai_messages_format(sample, SYSTEM_PROMPT)
     assert result["messages"][0]["role"] == "system"
     assert result["messages"][1]["role"] == "user"
     assert result["messages"][2]["role"] == "assistant"

@@ -1,10 +1,17 @@
+# 可选：如果需要单独导出合并后的完整模型，使用本配置。
+# vLLM adapter 部署不需要执行 export，直接使用训练 output_dir 即可。
+#
 # 导出时使用与训练一致的基座模型。
-model: Qwen/Qwen3.5-4B
+model_name_or_path: Qwen/Qwen3.5-4B
+trust_remote_code: true
+template: qwen3_nothink
 
-# 训练完成后，把这里改成实际存在的 LoRA checkpoint 路径。
-adapters:
-  - ./output/qwen35_lora/checkpoint-best
+# 训练完成后，把这里改成实际存在的 LoRA checkpoint 路径；
+# 如果直接导出最终 LoRA，可保持为训练 output_dir。
+adapter_name_or_path: ./output/qwen35_lora
 
-# 合并 LoRA 权重并保存完整模型。
-merge_lora: true
-output_dir: ./output/qwen35_merged
+# 合并 LoRA 权重并保存为 HuggingFace/safetensors 目录。
+export_dir: ./output/qwen35_merged
+export_size: 5
+export_device: cpu
+export_legacy_format: false

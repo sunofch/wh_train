@@ -115,3 +115,19 @@ def test_evaluate_file(tmp_path):
     assert metrics["part_name_accuracy"] == 1.0
     assert metrics["array_length_accuracy"] == 1.0
     assert "model_null_recall" in metrics
+
+
+def test_evaluate_file_llamafactory_predictions(tmp_path):
+    import json
+
+    pred_line = json.dumps({"predict": _VALID, "label": _VALID}, ensure_ascii=False)
+    gold_line = json.dumps({"label": _VALID}, ensure_ascii=False)
+
+    pred_f = tmp_path / "generated_predictions.jsonl"
+    gold_f = tmp_path / "gold.jsonl"
+    pred_f.write_text(pred_line + "\n", encoding="utf-8")
+    gold_f.write_text(gold_line + "\n", encoding="utf-8")
+
+    metrics = evaluate_file(str(pred_f), str(gold_f))
+    assert metrics["json_parse_rate"] == 1.0
+    assert metrics["quantity_accuracy"] == 1.0

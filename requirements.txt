@@ -4,17 +4,20 @@
 #       --extra-index-url https://download.pytorch.org/whl/cu124
 
 # ── Training Framework ────────────────────────────────────────────────────────
-ms-swift==4.2.2
-transformers==5.8.1
-peft==0.14.0
-accelerate==1.13.0
+# LLaMA-Factory is installed from source:
+#   git clone --depth 1 https://github.com/hiyouga/LLaMA-Factory.git
+#   cd LLaMA-Factory && pip install -e .
+transformers==5.6.0
+peft==0.18.1
+accelerate==1.11.0
 datasets==3.0.1
 modelscope==1.37.1
 safetensors==0.4.5
 tokenizers==0.22.2
 sentencepiece==0.2.1
-qwen-vl-utils==0.0.14
-decord==0.6.0
+
+# Optional: install in the deployment environment for serving exported models.
+vllm==0.8.5
 
 # ── Data Generation ───────────────────────────────────────────────────────────
 openai==2.36.0
