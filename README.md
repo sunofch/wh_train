@@ -42,39 +42,78 @@ cd /home/catlab/wh_train
 
 ```
 wh_train/
+├── Makefile                 # 常用命令入口
+├── README.md
+├── requirements.txt
+├── pytest.ini
 ├── config/
 │   ├── train_config.yaml    # LLaMA-Factory LoRA 训练配置
 │   ├── train_config_vllm_lora.yaml # vLLM LoRA 热挂载兼容训练配置
+│   ├── chat_config.yaml     # LLaMA-Factory chat / inference 配置
+│   ├── grpo.yaml            # TRL GRPO 强化精修配置
 │   └── export_config.yaml   # 可选 LoRA 合并导出配置
+├── wh_train/                # Python 包源码
+│   ├── __main__.py          # python -m wh_train 入口
+│   ├── cli.py               # 统一 CLI 入口
+│   ├── schema.py            # WorkOrder 字段、合法枚举、系统提示词
+│   ├── data/                # 数据生成、归一化、划分
+│   ├── eval/                # 评估主流程
+│   ├── infer/               # 离线推理
+│   ├── reward/              # 解析、指标、GRPO 奖励函数
+│   └── train/               # SFT / GRPO 训练入口
 ├── data/
-│   ├── train.jsonl          # 训练集（ShareGPT 格式）
-│   ├── val.jsonl            # 验证集
-│   └── dataset_info.json    # LLaMA-Factory 数据集注册
-├── tests/
-│   ├── test_generate_utils.py
-│   └── test_generate_main.py
-├── generate_dataset.py      # DeepSeek API 合成数据生成
-├── evaluate.py              # 验证集评估（JSON 解析率 / 字段准确率等）
-├── requirements.txt
-└── README.md
+│   ├── dataset_info.json    # LLaMA-Factory 数据集注册，建议保留
+│   ├── train.jsonl          # 生成的训练集，忽略入库
+│   └── val.jsonl            # 生成的验证集，忽略入库
+├── scripts/
+│   ├── check_data.py        # 数据质量检查
+│   ├── healthcheck.py       # vLLM 服务健康检查
+│   └── post_train.py        # 训练后元数据摘要
+├── tests/                   # 单元测试
+└── output/                  # 训练产物，忽略入库
 ```
+
+根目录不再保留 `generate_dataset.py`、`evaluate.py`、`inference.py` 这类转发壳。统一使用 `python -m wh_train <command>` 或 `make <target>`。
 
 ---
 
 ## 使用步骤
 
-### 1. 生成训练数据
+### 1. 查看命令
 
-需要配置 DeepSeek API Key：
+```bash
+python -m wh_train --help
+make help
+```
+
+主要子命令：
+
+| 命令 | 用途 |
+|------|------|
+| `python -m wh_train gen-data` | 生成训练/验证数据 |
+| `python -m wh_train sft --config ...` | 调用 LLaMA-Factory 做 SFT |
+| `python -m wh_train grpo --config ...` | TRL GRPO 强化精修 |
+| `python -m wh_train eval --pred ... --gold ...` | 批量评估 |
+| `python -m wh_train infer` | 单条、批量或交互式离线推理 |
+
+### 2. 生成训练数据
+
+需要配置 DeepSeek API Key。默认输出到 `data/`：
 
 ```bash
 export DEEPSEEK_API_KEY="your-key-here"
-python generate_dataset.py
+python -m wh_train gen-data
 ```
 
 生成完成后输出 `data/train.jsonl`（约 1350 条）和 `data/val.jsonl`（约 150 条）。
 
-### 2. 训练
+也可以通过 Makefile：
+
+```bash
+make data
+```
+
+### 3. 训练
 
 ```bash
 export HF_ENDPOINT=https://hf-mirror.com
@@ -85,16 +124,22 @@ CUDA_VISIBLE_DEVICES=1 llamafactory-cli train config/train_config_vllm_lora.yaml
 
 训练日志与 checkpoint 保存至 `output/qwen35_lora_vllm/`。`config/train_config.yaml` 使用 `lora_target: all`，适合导出合并模型，不建议直接作为 vLLM LoRA adapter 热挂载。
 
-### 3. 交互试用
+也可以通过 Makefile：
+
+```bash
+make train GPU=1
+```
+
+### 4. 交互试用
 
 优先使用验证集 loss 最低的 checkpoint，例如：
 
 ```bash
 CUDA_VISIBLE_DEVICES=1 llamafactory-cli chat \
-  config/train_config.yaml \
+  config/chat_config.yaml \
+  model_name_or_path=Qwen/Qwen3.5-4B \
   adapter_name_or_path=output/qwen35_lora_vllm \
   finetuning_type=lora \
-  do_train=false \
   max_new_tokens=256 \
   temperature=0
 ```
@@ -105,7 +150,13 @@ CUDA_VISIBLE_DEVICES=1 llamafactory-cli chat \
 紧急出库2个6208-2RS-C3-SKF轴承和1个HTW-3400Nm-ENERPAC液压力矩扳手
 ```
 
-### 4. 批量评估
+也可以通过 Makefile：
+
+```bash
+make chat GPU=1
+```
+
+### 5. 批量评估
 
 先用 LLaMA-Factory 对验证集生成预测：
 
@@ -115,15 +166,20 @@ CUDA_VISIBLE_DEVICES=1 llamafactory-cli train \
   do_train=false \
   do_predict=true \
   predict_with_generate=true \
+  adapter_name_or_path=output/qwen35_lora_vllm \
+  finetuning_type=lora \
   output_dir=output/qwen35_lora_vllm/predict \
   max_new_tokens=256 \
-  temperature=0
+  do_sample=false \
+  temperature=1.0
 ```
 
 再计算指标：
 
 ```bash
-python evaluate.py output/qwen35_lora_vllm/predict/generated_predictions.jsonl data/val.jsonl
+python -m wh_train eval \
+  --pred output/qwen35_lora_vllm/predict/generated_predictions.jsonl \
+  --gold data/val.jsonl
 ```
 
 输出指标：
@@ -135,7 +191,13 @@ python evaluate.py output/qwen35_lora_vllm/predict/generated_predictions.jsonl d
 | 数组长度准确率（多备件） | > 85% |
 | null 召回率（缺失字段） | > 95% |
 
-### 5. vLLM 使用 LoRA adapter 部署
+也可以通过 Makefile：
+
+```bash
+make eval GPU=1
+```
+
+### 6. vLLM 使用 LoRA adapter 部署
 
 训练输出目录 `output/qwen35_lora_vllm/` 本身就是 PEFT LoRA adapter，包含 `adapter_config.json` 和 `adapter_model.safetensors`。vLLM 可直接加载基座模型并挂载该 adapter，无需合并权重。
 
@@ -181,6 +243,83 @@ curl http://localhost:8000/v1/chat/completions \
 llamafactory-cli export config/export_config.yaml
 ```
 
+### 7. GRPO 强化精修
+
+GRPO 使用 TRL + vLLM rollout，依赖组合和 SFT/eval 环境不同。不要直接在当前 `train` 环境里把 vLLM 升级到 GRPO 版本，否则会和 `transformers==5.6.0`、`torch==2.6.0+cu124` 冲突。
+
+`requirements-grpo.txt` 当前锁定为 `trl==1.5.1`、`vllm==0.19.1`、`transformers==5.6.0`、`torch==2.10.0`。这里保留 `transformers==5.6.0` 是因为旧版 4.x Transformers 不能识别 Qwen3.5 的 `qwen3_5` 架构。
+
+建议单独创建环境：
+
+```bash
+conda create -n wh-grpo python=3.11 -y
+conda activate wh-grpo
+pip install -r requirements-grpo.txt
+```
+
+GRPO 入口使用 `trl.GRPOTrainer`，不需要安装 LLaMA-Factory。不要在该环境里执行 `pip install -e /home/catlab/LLaMA-Factory`，否则 LLaMA-Factory 的依赖可能把 `trl`、`starlette` 等包改回不兼容版本。
+
+进入项目目录：
+
+```bash
+cd /home/catlab/wh_train
+```
+
+先在一张卡启动 rollout 服务。优先使用本地 Hugging Face snapshot，并开启离线模式，避免 vLLM 启动时联网调用 `list_repo_files` 失败：
+
+```bash
+CUDA_VISIBLE_DEVICES=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 NCCL_SOCKET_IFNAME=lo NCCL_IB_DISABLE=1 trl vllm-serve \
+  --model /home/catlab/.cache/huggingface/hub/models--Qwen--Qwen3.5-4B/snapshots/851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a \
+  --port 8000 \
+  --trust-remote-code \
+  --max-model-len 512 \
+  --gpu-memory-utilization 0.80 \
+  --enforce-eager
+```
+
+如果使用 `--model Qwen/Qwen3.5-4B` 直接从仓库名启动，vLLM 可能在启动阶段访问 Hugging Face 文件列表；网络异常时会出现 `Error retrieving file list: [Errno 99] Cannot assign requested address`。本地 snapshot 路径可以绕过这一步。
+
+再在另一张卡启动 GRPO：
+
+```bash
+CUDA_VISIBLE_DEVICES=0 PYTORCH_ALLOC_CONF=expandable_segments:True NCCL_SOCKET_IFNAME=lo NCCL_IB_DISABLE=1 \
+  python -m wh_train grpo --config config/grpo.yaml
+```
+
+`PYTORCH_ALLOC_CONF=expandable_segments:True` 用于缓解 PyTorch CUDA 显存碎片导致的 OOM，不会降低训练本身需要的显存。若仍然 OOM，优先调小 `config/grpo.yaml` 中的 `num_generations`、`per_device_train_batch_size` 或 `max_completion_length`。
+
+或使用 Makefile：
+
+```bash
+make grpo
+```
+
+---
+
+## 目录职责
+
+### `data/`
+
+`data/dataset_info.json` 是 LLaMA-Factory 的数据集注册文件，训练配置依赖它，建议保留。
+
+`data/train.jsonl` 和 `data/val.jsonl` 是生成数据，不入库。删除后需要重新执行 `python -m wh_train gen-data` 或 `make data`。
+
+### `output/`
+
+`output/` 是训练产物目录，不入库。默认 adapter 路径是 `output/qwen35_lora_vllm/`，部署、评估、交互试用和 GRPO 起点都会引用它。
+
+如果只清理代码仓库空间，可以删除 `output/`；如果还要使用当前训练好的 LoRA adapter，就不要删除。
+
+### `scripts/`
+
+`scripts/` 是辅助运维脚本，仍由 Makefile 调用：
+
+```bash
+make check       # scripts/healthcheck.py
+make check-data  # scripts/check_data.py
+make post-train  # scripts/post_train.py
+```
+
 ---
 
 ## 修改训练参数
@@ -217,6 +356,12 @@ VLM35_MODEL=wh-qwen35
 conda activate train
 cd /home/catlab/wh_train
 pytest tests/ -v
+```
+
+或：
+
+```bash
+make test
 ```
 
 ---

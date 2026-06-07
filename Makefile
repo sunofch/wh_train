@@ -2,20 +2,21 @@
 #  wh_train Makefile — 统一命令入口
 #
 #  变量（可通过命令行覆盖）：
-#    GPU        使用哪块 GPU（默认 1）
-#    BASE_MODEL 基座模型（默认 Qwen/Qwen3.5-4B）
-#    ADAPTER    LoRA adapter 目录（默认 output/qwen35_lora_vllm）
-#    KB_DIR     知识库目录（或设置环境变量 WH_KB_DIR）
-#    DATA_DIR   数据目录（默认 data）
+#    GPU        使用哪块 GPU（默认 1；可用 WH_GPU）
+#    BASE_MODEL 基座模型（默认 Qwen/Qwen3.5-4B；可用 WH_BASE_MODEL）
+#    ADAPTER    LoRA adapter 目录（默认 output/qwen35_lora_vllm；可用 WH_ADAPTER）
+#    KB_DIR     知识库目录（默认 wh_graphrag_re/data/knowledge_base；可用 WH_KB_DIR）
+#    DATA_DIR   数据目录（默认 data；可用 WH_DATA_DIR）
 # ─────────────────────────────────────────────────────────
 
-GPU        ?= 1
-BASE_MODEL ?= Qwen/Qwen3.5-4B
-ADAPTER    ?= output/qwen35_lora_vllm
-KB_DIR     ?= $(WH_KB_DIR)
-DATA_DIR   ?= data
+GPU        ?= $(or $(WH_GPU),1)
+BASE_MODEL ?= $(or $(WH_BASE_MODEL),Qwen/Qwen3.5-4B)
+ADAPTER    ?= $(or $(WH_ADAPTER),output/qwen35_lora_vllm)
+KB_DIR     ?= $(or $(WH_KB_DIR),/home/catlab/wh/wh_graphrag_re/data/knowledge_base)
+DATA_DIR   ?= $(or $(WH_DATA_DIR),data)
 
 TRAIN_CFG  := config/train_config_vllm_lora.yaml
+CHAT_CFG   := config/chat_config.yaml
 PRED_DIR   := $(ADAPTER)/predict
 
 .PHONY: help data train grpo eval chat serve check check-data post-train test clean
@@ -39,6 +40,8 @@ help:
 	@echo "  make train GPU=0"
 	@echo "  make eval  ADAPTER=output/qwen35_lora_vllm"
 	@echo "  make data  KB_DIR=/path/to/knowledge_base"
+	@echo ""
+	@echo "也可通过环境变量设置默认值：WH_GPU / WH_BASE_MODEL / WH_ADAPTER / WH_KB_DIR / WH_DATA_DIR"
 
 # ── 数据生成 ──────────────────────────────────────────────
 data:
@@ -66,9 +69,12 @@ eval:
 		do_train=false \
 		do_predict=true \
 		predict_with_generate=true \
+		adapter_name_or_path=$(ADAPTER) \
+		finetuning_type=lora \
 		output_dir=$(PRED_DIR) \
 		max_new_tokens=256 \
-		temperature=0
+		do_sample=false \
+		temperature=1.0
 	python -m wh_train eval \
 		--pred $(PRED_DIR)/generated_predictions.jsonl \
 		--gold $(DATA_DIR)/val.jsonl \
@@ -77,10 +83,10 @@ eval:
 
 # ── 交互测试 ──────────────────────────────────────────────
 chat:
-	CUDA_VISIBLE_DEVICES=$(GPU) llamafactory-cli chat $(TRAIN_CFG) \
+	CUDA_VISIBLE_DEVICES=$(GPU) llamafactory-cli chat $(CHAT_CFG) \
+		model_name_or_path=$(BASE_MODEL) \
 		adapter_name_or_path=$(ADAPTER) \
 		finetuning_type=lora \
-		do_train=false \
 		max_new_tokens=256 \
 		temperature=0
 

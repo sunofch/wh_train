@@ -12,6 +12,23 @@ _W_FORMAT, _W_SCHEMA, _W_LENGTH, _W_FIELDS = 0.10, 0.15, 0.15, 0.60
 _ALLOWED = set(FIELDS)
 
 
+def _as_text(value) -> str:
+    """Normalize TRL chat completions or plain strings to assistant text."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        content = value.get("content")
+        return content if isinstance(content, str) else ""
+    if isinstance(value, list):
+        for item in reversed(value):
+            if isinstance(item, dict) and item.get("role") == "assistant":
+                content = item.get("content")
+                return content if isinstance(content, str) else ""
+        if value:
+            return _as_text(value[-1])
+    return ""
+
+
 def _schema_score(orders: list[dict]) -> float:
     """合法工单占比：仅含允许字段 + action 合法 + is_urgent 是 bool。"""
     if not orders:
@@ -85,4 +102,4 @@ def reward_func(prompts=None, completions=None, gold=None, align: str = "positio
     """
     completions = completions or []
     gold = gold or []
-    return [compute_reward(c, g, align=align) for c, g in zip(completions, gold)]
+    return [compute_reward(_as_text(c), _as_text(g), align=align) for c, g in zip(completions, gold)]

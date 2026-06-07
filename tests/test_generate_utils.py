@@ -1,7 +1,8 @@
 import json
 import pytest
 from pathlib import Path
-from generate_dataset import validate_sample, to_openai_messages_format, load_knowledge_base, stratified_split
+from wh_train.data.normalize import validate_sample
+from wh_train.data.split import to_openai_messages_format, load_knowledge_base, stratified_split
 
 SYSTEM_PROMPT = (
     "你是港口备件指令解析助手。"

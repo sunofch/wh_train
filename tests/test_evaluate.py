@@ -1,10 +1,10 @@
-from evaluate import (
+from wh_train.reward.metrics import (
     array_length_accuracy,
-    evaluate_file,
     field_accuracy,
     json_parse_rate,
     null_recall,
 )
+from wh_train.eval.evaluate import evaluate_file
 
 
 def _r(pred: str, gold: str) -> dict:

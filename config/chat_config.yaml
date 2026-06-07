@@ -1,0 +1,9 @@
+# LLaMA-Factory chat / inference config.
+# Keep this file free of training-only keys; chat rejects SFT training args.
+model_name_or_path: Qwen/Qwen3.5-4B
+trust_remote_code: true
+finetuning_type: lora
+template: qwen3_nothink
+default_system: 你是港口备件指令解析助手。将用户指令解析为JSON数组，无法确定的字段输出null，不要猜测。action_required 只能是 入库/出库/调库/null，is_urgent 为 bool。
+max_new_tokens: 256
+temperature: 0

@@ -3,7 +3,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from generate_dataset import deduplicate, generate_batch
+from wh_train.data.generate import generate_batch
+from wh_train.data.split import deduplicate
 
 
 def _make_mock_response(samples: list[dict]) -> MagicMock:
@@ -20,7 +21,7 @@ def test_generate_batch_returns_valid_samples():
     mock_client = MagicMock()
     mock_client.chat.completions.create.return_value = _make_mock_response([valid_sample])
 
-    with patch("generate_dataset._get_client", return_value=mock_client):
+    with patch("wh_train.data.generate._get_client", return_value=mock_client):
         results = generate_batch("显式标准指令", "明确包含出库/入库", "kb context", n=1)
 
     assert len(results) == 1
@@ -32,7 +33,7 @@ def test_generate_batch_filters_invalid():
     mock_client = MagicMock()
     mock_client.chat.completions.create.return_value = _make_mock_response([bad_sample])
 
-    with patch("generate_dataset._get_client", return_value=mock_client):
+    with patch("wh_train.data.generate._get_client", return_value=mock_client):
         results = generate_batch("显式标准指令", "desc", "kb", n=1)
 
     assert len(results) == 0
@@ -52,7 +53,7 @@ def test_generate_batch_normalizes_alias_fields():
     mock_client = MagicMock()
     mock_client.chat.completions.create.return_value = _make_mock_response(samples)
 
-    with patch("generate_dataset._get_client", return_value=mock_client):
+    with patch("wh_train.data.generate._get_client", return_value=mock_client):
         results = generate_batch("显式标准指令", "desc", "kb", n=2)
 
     assert len(results) == 2
@@ -74,7 +75,7 @@ def test_generate_batch_handles_api_error():
     mock_client = MagicMock()
     mock_client.chat.completions.create.side_effect = Exception("network error")
 
-    with patch("generate_dataset._get_client", return_value=mock_client):
+    with patch("wh_train.data.generate._get_client", return_value=mock_client):
         with pytest.raises(Exception):
             generate_batch("显式标准指令", "desc", "kb", n=1)
 
@@ -85,7 +86,7 @@ def test_generate_batch_handles_malformed_json():
     mock_client = MagicMock()
     mock_client.chat.completions.create.return_value = mock_resp
 
-    with patch("generate_dataset._get_client", return_value=mock_client):
+    with patch("wh_train.data.generate._get_client", return_value=mock_client):
         results = generate_batch("显式标准指令", "desc", "kb", n=1)
 
     assert results == []

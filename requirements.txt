@@ -15,6 +15,9 @@ modelscope==1.37.1
 safetensors==0.4.5
 tokenizers==0.22.2
 sentencepiece==0.2.1
+jieba==0.42.1
+nltk==3.9.4
+rouge-chinese==1.0.3
 
 # Optional: install in the deployment environment for serving exported models.
 vllm==0.8.5
@@ -27,11 +30,11 @@ numpy==1.26.4
 packaging==26.0
 
 # ── Experiment Tracking ───────────────────────────────────────────────────────
-tensorboard>=2.17.0
+tensorboard==2.20.0
 
 # ── Reinforcement Learning (GRPO) ─────────────────────────────────────────────
-trl>=0.16.0
-PyYAML>=6.0
+trl==0.24.0
+PyYAML==6.0.3
 
 # ── Testing ───────────────────────────────────────────────────────────────────
 pytest==9.0.3

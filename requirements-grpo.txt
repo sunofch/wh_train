@@ -1,0 +1,32 @@
+# GRPO-only environment.
+#
+# Keep this separate from requirements.txt:
+# - vLLM/TRL GRPO pulls a different torch/vLLM stack from SFT.
+# - the main SFT/eval environment currently uses torch==2.6.0+cu124
+#   with transformers==5.6.0.
+
+# Core GRPO / rollout stack
+trl==1.5.1
+vllm==0.19.1
+transformers==5.6.0
+torch==2.10.0
+torchvision==0.25.0
+torchaudio==2.10.0
+
+# Training utilities
+peft==0.18.1
+accelerate==1.13.0
+datasets==5.0.0
+safetensors==0.7.0
+tokenizers==0.22.2
+sentencepiece==0.2.1
+numpy==2.2.6
+PyYAML==6.0.3
+packaging==26.2
+
+# Project runtime
+openai==2.41.0
+tensorboard==2.20.0
+jieba==0.42.1
+nltk==3.9.4
+rouge-chinese==1.0.3

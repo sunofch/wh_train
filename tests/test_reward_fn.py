@@ -65,3 +65,12 @@ def test_reward_func_batch_signature():
     )
     assert scores[0] > 0.99
     assert scores[1] == 0.0
+
+
+def test_reward_func_accepts_trl_chat_completion_shape():
+    scores = reward_func(
+        prompts=[[{"role": "user", "content": "出库两个轴承"}]],
+        completions=[[{"role": "assistant", "content": _GOLD}]],
+        gold=[_GOLD],
+    )
+    assert scores[0] > 0.99

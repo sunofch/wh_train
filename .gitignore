@@ -22,6 +22,7 @@ __pycache__/
 data/*
 !data/dataset_info.json
 output/
+runs/
 
 # 环境
 .env
