@@ -1,6 +1,14 @@
-"""DeepSeek API 合成训练数据生成脚本。"""
+"""DeepSeek API 合成训练数据生成脚本。
+
+用法：
+    export DEEPSEEK_API_KEY="your-key"
+    python generate_dataset.py [--kb-dir /path/to/kb] [--output-dir data]
+
+环境变量 WH_KB_DIR 可替代 --kb-dir。
+"""
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import random
@@ -198,19 +206,24 @@ def _print_rejection_summary(raw: list[dict]) -> None:
 
 
 def to_openai_messages_format(sample: dict, system_prompt: str) -> dict:
-    """将 {input, output} 转为 OpenAI messages 格式。"""
-    return {
+    """将 {input, output} 转为 OpenAI messages 格式，保留 scenario 字段（若存在）。"""
+    result = {
         "messages": [
             {"role": "system",    "content": system_prompt},
             {"role": "user",      "content": sample["input"]},
             {"role": "assistant", "content": sample["output"]},
         ]
     }
+    if "scenario" in sample:
+        result["scenario"] = sample["scenario"]
+    return result
 
 
 def load_knowledge_base(kb_dir: str, max_chars_per_file: int = 500) -> str:
-    """读取知识库 markdown 文件，返回拼接文本。"""
+    """读取知识库 markdown 文件，返回拼接文本；目录不存在时返回空字符串。"""
     kb_path = Path(kb_dir)
+    if not kb_path.is_dir():
+        return ""
     texts = []
     for f in sorted(kb_path.glob("*.md")):
         content = f.read_text(encoding="utf-8")
@@ -223,11 +236,11 @@ def stratified_split(
     val_ratio: float = 0.1,
     seed: int = 42,
 ) -> tuple[list[dict], list[dict]]:
-    """按场景类别分层划分 train/val，返回 (train_samples, val_samples)。"""
+    """按场景类别分层划分 train/val，sample dict 中嵌入 scenario 字段。"""
     rng = random.Random(seed)
     groups: dict[str, list[dict]] = {}
     for scenario, sample in samples:
-        groups.setdefault(scenario, []).append(sample)
+        groups.setdefault(scenario, []).append({**sample, "scenario": scenario})
 
     train_all, val_all = [], []
     for scenario, group in groups.items():
@@ -297,12 +310,27 @@ def deduplicate(
     return result
 
 
-def main():
-    kb_dir = "/home/catlab/wh/wh_graphrag_re/data/knowledge_base"
-    output_dir = Path("/home/catlab/wh_train/data")
+def main() -> None:
+    parser = argparse.ArgumentParser(description="DeepSeek API 合成训练数据生成脚本")
+    parser.add_argument(
+        "--kb-dir",
+        default=os.getenv("WH_KB_DIR", ""),
+        help="知识库目录（Markdown 文件）。也可通过环境变量 WH_KB_DIR 指定。",
+    )
+    parser.add_argument(
+        "--output-dir",
+        default="data",
+        help="输出目录（默认 ./data）",
+    )
+    args = parser.parse_args()
+
+    kb_context = load_knowledge_base(args.kb_dir) if args.kb_dir else ""
+    if not kb_context:
+        print("警告：未加载到知识库内容，生成数据将不含真实备件参考。")
+
+    output_dir = Path(args.output_dir)
     output_dir.mkdir(exist_ok=True)
 
-    kb_context = load_knowledge_base(kb_dir)
     all_samples: list[tuple[str, dict]] = []
 
     for scenario, cfg in SCENARIOS.items():

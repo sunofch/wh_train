@@ -1,0 +1,15 @@
+[run]
+omit =
+    tests/*
+    scripts/*
+    inference.py
+    */site-packages/*
+    setup.py
+
+[report]
+omit =
+    tests/*
+    scripts/*
+    inference.py
+    */site-packages/*
+    setup.py

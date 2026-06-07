@@ -44,4 +44,10 @@ logging_steps: 10
 plot_loss: true
 overwrite_output_dir: true
 save_only_model: false
-report_to: none
+report_to: tensorboard
+
+# 自动保留验证集 loss 最低的 checkpoint。
+load_best_model_at_end: true
+metric_for_best_model: eval_loss
+greater_is_better: false
+save_total_limit: 3

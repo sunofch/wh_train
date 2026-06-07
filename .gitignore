@@ -10,6 +10,10 @@ __pycache__/
 *.py[cod]
 *.pyo
 .pytest_cache/
+.coverage
+
+# CodeGraph
+.codegraph/
 
 # Claude
 .claude/
