@@ -18,13 +18,14 @@ DATA_DIR   ?= data
 TRAIN_CFG  := config/train_config_vllm_lora.yaml
 PRED_DIR   := $(ADAPTER)/predict
 
-.PHONY: help data train eval chat serve check check-data post-train test clean
+.PHONY: help data train grpo eval chat serve check check-data post-train test clean
 
 help:
 	@echo "用法：make <target> [变量=值]"
 	@echo ""
 	@echo "  data        生成训练数据（需 DEEPSEEK_API_KEY）"
-	@echo "  train       LoRA 微调训练"
+	@echo "  train       LoRA 微调训练（SFT）"
+	@echo "  grpo        GRPO 强化精修（双卡）"
 	@echo "  eval        批量预测 + 评估指标"
 	@echo "  chat        交互式对话（llamafactory-cli）"
 	@echo "  serve       启动 vLLM 服务"
@@ -43,15 +44,21 @@ help:
 data:
 	@test -n "$(DEEPSEEK_API_KEY)" || \
 		(echo "错误：请先设置 DEEPSEEK_API_KEY"; exit 1)
-	python generate_dataset.py \
+	python -m wh_train gen-data \
 		$(if $(KB_DIR),--kb-dir $(KB_DIR),) \
 		--output-dir $(DATA_DIR)
 
-# ── 训练 ─────────────────────────────────────────────────
+# ── 训练（SFT）───────────────────────────────────────────
 train:
 	HF_ENDPOINT=https://hf-mirror.com \
 	CUDA_VISIBLE_DEVICES=$(GPU) \
 		llamafactory-cli train $(TRAIN_CFG)
+
+# ── GRPO 强化精修（双卡：GPU1 跑 vLLM rollout，GPU0 训练）──
+grpo:
+	@echo "提示：先在另一终端起 rollout 服务："
+	@echo "  CUDA_VISIBLE_DEVICES=1 trl vllm-serve --model $(BASE_MODEL) --port 8000"
+	CUDA_VISIBLE_DEVICES=0 python -m wh_train grpo --config config/grpo.yaml
 
 # ── 批量预测 + 评估 ───────────────────────────────────────
 eval:
@@ -62,9 +69,9 @@ eval:
 		output_dir=$(PRED_DIR) \
 		max_new_tokens=256 \
 		temperature=0
-	python evaluate.py \
-		$(PRED_DIR)/generated_predictions.jsonl \
-		$(DATA_DIR)/val.jsonl \
+	python -m wh_train eval \
+		--pred $(PRED_DIR)/generated_predictions.jsonl \
+		--gold $(DATA_DIR)/val.jsonl \
 		--report $(PRED_DIR)/eval_report.json \
 		--errors $(PRED_DIR)/eval_errors.jsonl
 
