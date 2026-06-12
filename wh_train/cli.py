@@ -33,6 +33,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_inf.add_argument("--adapter", default=None)
     p_inf.add_argument("--gpu", type=int, default=0)
     p_inf.add_argument("--max-tokens", type=int, default=256)
+    p_inf.add_argument("--prompt", choices=["default", "base"], default="default",
+                       help="系统提示词：default=标准短提示词，base=基座模型专用详细提示词")
     p_inf.add_argument("--text", default=None)
     p_inf.add_argument("--input", default=None)
     p_inf.add_argument("--output", default=None)
@@ -63,12 +65,14 @@ def main(argv=None) -> None:
         from wh_train.infer.inference import (
             load_model, predict_one, run_batch, run_interactive,
         )
+        from wh_train.schema import SYSTEM_PROMPT, BASE_SYSTEM_PROMPT
+        system_prompt = BASE_SYSTEM_PROMPT if args.prompt == "base" else SYSTEM_PROMPT
         device = f"cuda:{args.gpu}" if args.gpu >= 0 else "cpu"
         model, tokenizer = load_model(args.base_model, args.adapter, device)
         if args.text:
-            print(predict_one(model, tokenizer, args.text, args.max_tokens))
+            print(predict_one(model, tokenizer, args.text, args.max_tokens, system_prompt))
         elif args.input:
             out_path = args.output or args.input.replace(".jsonl", "_pred.jsonl")
-            run_batch(model, tokenizer, args.input, out_path, args.max_tokens)
+            run_batch(model, tokenizer, args.input, out_path, args.max_tokens, system_prompt)
         else:
-            run_interactive(model, tokenizer, args.max_tokens)
+            run_interactive(model, tokenizer, args.max_tokens, system_prompt)

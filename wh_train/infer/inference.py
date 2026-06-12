@@ -8,9 +8,9 @@ from pathlib import Path
 from wh_train.schema import SYSTEM_PROMPT
 
 
-def build_messages(user_text: str) -> list[dict]:
+def build_messages(user_text: str, system_prompt: str = SYSTEM_PROMPT) -> list[dict]:
     return [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": system_prompt},
         {"role": "user",   "content": user_text},
     ]
 
@@ -48,9 +48,10 @@ def load_model(base_model: str, adapter_path: str | None, device: str):
     return model, tokenizer
 
 
-def predict_one(model, tokenizer, user_text: str, max_new_tokens: int) -> str:
+def predict_one(model, tokenizer, user_text: str, max_new_tokens: int,
+                system_prompt: str = SYSTEM_PROMPT) -> str:
     import torch
-    prompt = _apply_chat_template(tokenizer, build_messages(user_text))
+    prompt = _apply_chat_template(tokenizer, build_messages(user_text, system_prompt))
     inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
     with torch.no_grad():
         output_ids = model.generate(
@@ -60,7 +61,8 @@ def predict_one(model, tokenizer, user_text: str, max_new_tokens: int) -> str:
     return tokenizer.decode(new_ids, skip_special_tokens=True)
 
 
-def run_batch(model, tokenizer, input_path: str, output_path: str, max_new_tokens: int) -> None:
+def run_batch(model, tokenizer, input_path: str, output_path: str, max_new_tokens: int,
+              system_prompt: str = SYSTEM_PROMPT) -> None:
     lines = [l for l in Path(input_path).read_text(encoding="utf-8").splitlines() if l.strip()]
     total = len(lines)
     with open(output_path, "w", encoding="utf-8") as out_f:
@@ -70,7 +72,7 @@ def run_batch(model, tokenizer, input_path: str, output_path: str, max_new_token
             if user_text is None:
                 print(f"  [警告] 第 {i} 条找不到用户输入，跳过", file=sys.stderr)
                 continue
-            prediction = predict_one(model, tokenizer, user_text, max_new_tokens)
+            prediction = predict_one(model, tokenizer, user_text, max_new_tokens, system_prompt)
             gold = ""
             if "messages" in record:
                 gold = record["messages"][-1].get("content", "")
@@ -89,7 +91,8 @@ def run_batch(model, tokenizer, input_path: str, output_path: str, max_new_token
     print(f"批量推理完成，结果写入：{output_path}", file=sys.stderr)
 
 
-def run_interactive(model, tokenizer, max_new_tokens: int) -> None:
+def run_interactive(model, tokenizer, max_new_tokens: int,
+                    system_prompt: str = SYSTEM_PROMPT) -> None:
     print("进入交互模式（Ctrl+C / Ctrl+D 退出）", file=sys.stderr)
     try:
         while True:
@@ -99,6 +102,6 @@ def run_interactive(model, tokenizer, max_new_tokens: int) -> None:
                 break
             if not user_text:
                 continue
-            print(predict_one(model, tokenizer, user_text, max_new_tokens))
+            print(predict_one(model, tokenizer, user_text, max_new_tokens, system_prompt))
     except KeyboardInterrupt:
         pass

@@ -15,11 +15,12 @@ ADAPTER    ?= $(or $(WH_ADAPTER),output/qwen35_lora_vllm)
 KB_DIR     ?= $(or $(WH_KB_DIR),/home/catlab/wh/wh_graphrag_re/data/knowledge_base)
 DATA_DIR   ?= $(or $(WH_DATA_DIR),data)
 
-TRAIN_CFG  := config/train_config_vllm_lora.yaml
-CHAT_CFG   := config/chat_config.yaml
-PRED_DIR   := $(ADAPTER)/predict
+TRAIN_CFG     := config/train_config_vllm_lora.yaml
+CHAT_CFG      := config/chat_config.yaml
+PRED_DIR      := $(ADAPTER)/predict
+BASE_PRED_DIR := output/base_model/predict
 
-.PHONY: help data train grpo eval chat serve check check-data post-train test clean
+.PHONY: help data train grpo eval base-eval chat serve check check-data post-train test clean
 
 help:
 	@echo "用法：make <target> [变量=值]"
@@ -27,7 +28,8 @@ help:
 	@echo "  data        生成训练数据（需 DEEPSEEK_API_KEY）"
 	@echo "  train       LoRA 微调训练（SFT）"
 	@echo "  grpo        GRPO 强化精修（双卡）"
-	@echo "  eval        批量预测 + 评估指标"
+	@echo "  eval        批量预测 + 评估指标（LoRA adapter）"
+	@echo "  base-eval   基座模型推理 + 评估（无 adapter，基线对照）"
 	@echo "  chat        交互式对话（llamafactory-cli）"
 	@echo "  serve       启动 vLLM 服务"
 	@echo "  check       vLLM 服务健康检查"
@@ -39,6 +41,7 @@ help:
 	@echo "示例："
 	@echo "  make train GPU=0"
 	@echo "  make eval  ADAPTER=output/qwen35_lora_vllm"
+	@echo "  make base-eval GPU=0"
 	@echo "  make data  KB_DIR=/path/to/knowledge_base"
 	@echo ""
 	@echo "也可通过环境变量设置默认值：WH_GPU / WH_BASE_MODEL / WH_ADAPTER / WH_KB_DIR / WH_DATA_DIR"
@@ -80,6 +83,23 @@ eval:
 		--gold $(DATA_DIR)/val.jsonl \
 		--report $(PRED_DIR)/eval_report.json \
 		--errors $(PRED_DIR)/eval_errors.jsonl
+
+# ── 基座模型推理 + 评估（无 adapter，基线对照）────────────
+base-eval:
+	mkdir -p $(BASE_PRED_DIR)
+	HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+	CUDA_VISIBLE_DEVICES=$(GPU) \
+		python -m wh_train infer \
+		--base-model $(BASE_MODEL) \
+		--prompt base \
+		--input $(DATA_DIR)/val.jsonl \
+		--output $(BASE_PRED_DIR)/generated_predictions.jsonl \
+		--gpu 0
+	python -m wh_train eval \
+		--pred $(BASE_PRED_DIR)/generated_predictions.jsonl \
+		--gold $(DATA_DIR)/val.jsonl \
+		--report $(BASE_PRED_DIR)/eval_report.json \
+		--errors $(BASE_PRED_DIR)/eval_errors.jsonl
 
 # ── 交互测试 ──────────────────────────────────────────────
 chat:

@@ -197,6 +197,51 @@ python -m wh_train eval \
 make eval GPU=1
 ```
 
+测试基座模型（无 LoRA adapter）作为对照基线：
+
+```bash
+make base-eval GPU=1
+```
+
+结果写入 `output/base_model/predict/eval_report.json`。
+
+### 基座 vs SFT 结果对比
+
+基于 `data/val.jsonl`（143 条）的评估结果：
+
+| 指标 | 基座（无 LoRA） | SFT LoRA | 提升 |
+|------|--------------|----------|------|
+| JSON 解析成功率 | 77.6% | **100%** | +22.4pp |
+| part_name 准确率 | 68.9% | **89.8%** | +20.9pp |
+| model 准确率 | 70.7% | **97.6%** | +26.9pp |
+| quantity 准确率 | 66.5% | **97.0%** | +30.5pp |
+| action_required 准确率 | 77.3% | **97.0%** | +19.8pp |
+| is_urgent 准确率 | 74.3% | **98.8%** | +24.6pp |
+| 数组长度准确率 | 77.6% | **100%** | +22.4pp |
+| model null 召回率 | 62.2% | **98.8%** | +36.6pp |
+| quantity null 召回率 | 15.0% | **96.8%** | +81.8pp |
+| 错误样本数 | 88 | 58 | -30 |
+
+**按场景细分（SFT）**：
+
+| 场景 | n | JSON 解析 | action 准确率 | is_urgent 准确率 |
+|------|---|----------|-------------|----------------|
+| 显式标准名称型号 | 14 | 100% | 100% | 100% |
+| 多备件 | 22 | 100% | 100% | 97.8% |
+| 数量模糊 | 13 | 100% | 100% | 100% |
+| 动作不确定 | 9 | 100% | 100% | 100% |
+| 字段缺失 | 12 | 100% | 100% | 100% |
+| ASR 噪声 | 15 | 100% | 93.3% | 100% |
+| 隐式紧急推断 | 15 | 100% | 93.3% | 93.3% |
+| 显式非标准名称缺失型号 | 14 | 100% | 100% | 100% |
+| 描述信息 | 10 | 100% | 90.0% | 100% |
+| 隐式行为推断 | 19 | 100% | 89.5% | 100% |
+
+**主要发现**：
+- `quantity_null_recall` 提升最显著（+82pp）：基座模型对模糊数量几乎总是瞎猜，SFT 后学会输出 `null`
+- `动作不确定` 场景基座模型 JSON 解析率为 0%，SFT 后达到 100%
+- SFT 的 `part_name_accuracy`（89.8%）是各字段中最低的，主要原因是训练数据中 part_name 标注口径不统一（用户简称与标准全称混用、修饰词是否并入名称不一致）
+
 ### 6. vLLM 使用 LoRA adapter 部署
 
 训练输出目录 `output/qwen35_lora_vllm/` 本身就是 PEFT LoRA adapter，包含 `adapter_config.json` 和 `adapter_model.safetensors`。vLLM 可直接加载基座模型并挂载该 adapter，无需合并权重。
@@ -293,6 +338,18 @@ CUDA_VISIBLE_DEVICES=0 PYTORCH_ALLOC_CONF=expandable_segments:True NCCL_SOCKET_I
 ```bash
 make grpo
 ```
+
+GRPO 完成后会生成 `output/qwen35_grpo/`。评估 GRPO adapter 需要切回 SFT/eval 使用的 `train` 环境，因为 `make eval` 调用的是 LLaMA-Factory：
+
+```bash
+conda activate train
+cd /home/catlab/wh_train
+make eval ADAPTER=output/qwen35_grpo
+make eval GPU=0 ADAPTER=output/qwen35_grpo
+
+```
+
+将 GRPO 评估结果与 SFT adapter 的 `output/qwen35_lora_vllm/predict/eval_report.json` 对比后，再决定是否替换部署 adapter。
 
 ---
 
